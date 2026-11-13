@@ -1,6 +1,6 @@
 {
   "name": "rfi-infomobilita",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Web app leggera per consultare, filtrare e classificare i feed RSS Infomobilità di RFI (Emilia-Romagna e altre regioni), ottimizzata per home-server.",
   "main": "server.js",
   "type": "module",

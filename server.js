@@ -207,8 +207,16 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
 
   if (req.method === 'GET' && url.pathname === '/api/health') {
+    let version = '1.1.0';
+    try {
+      const pkg = JSON.parse(await fs.readFile(path.join(__dirname, 'package.json'), 'utf8'));
+      version = pkg.version || version;
+    } catch {
+      // Fallback
+    }
     return sendJson(res, 200, {
       status: 'ok',
+      version,
       uptimeSeconds: Math.round(process.uptime()),
       memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024)
     });

@@ -101,7 +101,9 @@ const el = {
   vtDestInput: document.getElementById('vtDestInput'),
   vtSogliaInput: document.getElementById('vtSogliaInput'),
   vtRoutesList: document.getElementById('vtRoutesList'),
-  vtLiveTrainsList: document.getElementById('vtLiveTrainsList')
+  vtLiveTrainsList: document.getElementById('vtLiveTrainsList'),
+  vtDiscoveredList: document.getElementById('vtDiscoveredList'),
+  appVersion: document.getElementById('appVersion')
 };
 
 function loadJsonArray(key, fallback) {
@@ -758,8 +760,38 @@ function renderVtSnapshot(data) {
               <span class="badge ${delayClass}">${escapeHtml(delayLabel)}</span>
             </div>
             <div class="vt-train-meta">
-              Ultimo ril.: ${escapeHtml(t.stazioneUltimoRilevamento || 'N/D')} · Tipo: ${escapeHtml(t.tipoTreno)}
+              ${t.operatore ? `${escapeHtml(t.operatore)} · ` : ''}Ultimo ril.: ${escapeHtml(t.stazioneUltimoRilevamento || 'N/D')} · Tipo: ${escapeHtml(t.tipoTreno)}
             </div>
+          </div>
+        `;
+      })
+      .join('');
+  }
+
+  const discoveredMap = data.discoveredByRoute || {};
+  const allDiscovered = [];
+  for (const r of routes) {
+    for (const t of discoveredMap[r.id] || []) {
+      allDiscovered.push({ ...t, tratta: `${r.origine} → ${r.destinazione}` });
+    }
+  }
+  allDiscovered.sort((a, b) => (a.orarioPartenza || 0) - (b.orarioPartenza || 0));
+
+  if (allDiscovered.length === 0) {
+    el.vtDiscoveredList.innerHTML = '<p class="modal-desc">Nessun treno individuato oggi sulle tratte configurate.</p>';
+  } else {
+    el.vtDiscoveredList.innerHTML = allDiscovered
+      .map((t) => {
+        const depTime = t.orarioPartenza
+          ? new Date(t.orarioPartenza).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+          : '--:--';
+        return `
+          <div class="vt-train-card">
+            <div class="vt-train-top">
+              <strong>${escapeHtml(depTime)} · ${escapeHtml(t.categoria)} ${escapeHtml(t.numeroTreno)} (${escapeHtml(t.origineTreno)} → ${escapeHtml(t.destinazioneTreno)})</strong>
+              <span class="meta-tag">${escapeHtml(t.operatore || 'Trenitalia')}</span>
+            </div>
+            <div class="vt-train-meta">${escapeHtml(t.tratta)}</div>
           </div>
         `;
       })
@@ -778,13 +810,26 @@ async function loadTratte() {
   }
 }
 
+async function loadVersion() {
+  try {
+    const res = await fetch('/api/health');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.version && el.appVersion) {
+      el.appVersion.textContent = `v${data.version}`;
+    }
+  } catch {
+    // Keep fallback version
+  }
+}
+
 async function init() {
   initTheme();
   saveWatchlist();
   renderStationChips();
   bindEvents();
   await loadRegions();
-  await Promise.all([loadFeeds(false), loadTratte()]);
+  await Promise.all([loadFeeds(false), loadTratte(), loadVersion()]);
 }
 
 init();
