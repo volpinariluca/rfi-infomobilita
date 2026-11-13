@@ -2,7 +2,7 @@
 
 Web app leggera e veloce (zero dipendenze esterne) per consultare, cercare e classificare in comodità i feed RSS ufficiali **Infomobilità di RFI** (`Aggiornamenti Live` e `Avvisi Programmati`), preconfigurata per l'**Emilia-Romagna** e compatibile con tutte le regioni italiane.
 
-Progettata per girare con consumi minimi (~25 MB di RAM) su **home-server S21** (Linux / Termux / Docker).
+Progettata per girare con consumi minimi (~25 MB di RAM) su **home-server S21** (Linux / Termux).
 
 ---
 
@@ -26,8 +26,6 @@ Progettata per girare con consumi minimi (~25 MB di RAM) su **home-server S21** 
 
 Non serve `npm install` (zero dipendenze esterne, solo Node.js >= 18).
 
-### Opzione 1: Direttamente con Node.js (Termux / Linux)
-
 ```bash
 git clone https://github.com/volpinariluca/rfi-infomobilita.git
 cd rfi-infomobilita
@@ -46,14 +44,6 @@ Per tenerla attiva in background con `pm2` o `tmux`:
 
 ```bash
 pm2 start server.js --name rfi-infomobilita
-```
-
-### Opzione 2: Con Docker Compose
-
-```bash
-git clone https://github.com/volpinariluca/rfi-infomobilita.git
-cd rfi-infomobilita
-docker compose up -d --build
 ```
 
 ---
