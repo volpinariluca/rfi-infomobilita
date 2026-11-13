@@ -191,6 +191,32 @@
     </div>
   </div>
 
+  <!-- Viaggiatreno Tratte Live Modal -->
+  <div id="vtModalBackdrop" class="modal-backdrop hidden" aria-hidden="true"></div>
+  <div id="vtModal" class="modal modal-wide hidden" role="dialog" aria-modal="true" aria-labelledby="vtModalTitle">
+    <div class="modal-header">
+      <h2 id="vtModalTitle">Monitoraggio Tratte Live (Viaggiatreno)</h2>
+      <div class="modal-header-actions">
+        <button type="button" id="vtRefreshBtn" class="btn btn-secondary">↻ Aggiorna ora</button>
+        <button type="button" id="closeVtModalBtn" class="btn btn-icon-only" aria-label="Chiudi">✕</button>
+      </div>
+    </div>
+    <div class="modal-body modal-body-scroll">
+      <form id="vtRouteForm" class="vt-route-form">
+        <input type="text" id="vtOrigInput" placeholder="Origine (es. BOLOGNA CENTRALE)" required>
+        <input type="text" id="vtDestInput" placeholder="Destinazione (es. MILANO CENTRALE)" required>
+        <input type="number" id="vtSogliaInput" value="10" min="1" max="120" title="Soglia ritardo (minuti)" required>
+        <button type="submit" class="btn btn-primary">+ Aggiungi tratta</button>
+      </form>
+
+      <h3 class="vt-section-title">Tratte monitorate</h3>
+      <ul id="vtRoutesList" class="watchlist-items"></ul>
+
+      <h3 class="vt-section-title">Treni attivi nella finestra oraria</h3>
+      <div id="vtLiveTrainsList" class="vt-trains-list"></div>
+    </div>
+  </div>
+
   <script type="module" src="/app.js"></script>
 </body>
 </html>

@@ -89,7 +89,19 @@ const el = {
   closeWatchlistBtn: document.getElementById('closeWatchlistBtn'),
   watchlistForm: document.getElementById('watchlistForm'),
   watchlistInput: document.getElementById('watchlistInput'),
-  watchlistItems: document.getElementById('watchlistItems')
+  watchlistItems: document.getElementById('watchlistItems'),
+  vtMonitorBtn: document.getElementById('vtMonitorBtn'),
+  vtActiveCount: document.getElementById('vtActiveCount'),
+  vtModalBackdrop: document.getElementById('vtModalBackdrop'),
+  vtModal: document.getElementById('vtModal'),
+  closeVtModalBtn: document.getElementById('closeVtModalBtn'),
+  vtRefreshBtn: document.getElementById('vtRefreshBtn'),
+  vtRouteForm: document.getElementById('vtRouteForm'),
+  vtOrigInput: document.getElementById('vtOrigInput'),
+  vtDestInput: document.getElementById('vtDestInput'),
+  vtSogliaInput: document.getElementById('vtSogliaInput'),
+  vtRoutesList: document.getElementById('vtRoutesList'),
+  vtLiveTrainsList: document.getElementById('vtLiveTrainsList')
 };
 
 function loadJsonArray(key, fallback) {
@@ -652,8 +664,118 @@ function bindEvents() {
     } else if (e.key === 'Escape') {
       closeDetailDrawer();
       closeWatchlist();
+      closeVtModal();
     }
   });
+
+  // Viaggiatreno Tratte Live modal
+  const closeVtModal = () => {
+    el.vtModalBackdrop.classList.add('hidden');
+    el.vtModal.classList.add('hidden');
+  };
+
+  el.vtMonitorBtn.addEventListener('click', async () => {
+    el.vtModalBackdrop.classList.remove('hidden');
+    el.vtModal.classList.remove('hidden');
+    await loadTratte();
+  });
+
+  el.closeVtModalBtn.addEventListener('click', closeVtModal);
+  el.vtModalBackdrop.addEventListener('click', closeVtModal);
+
+  el.vtRefreshBtn.addEventListener('click', async () => {
+    el.vtRefreshBtn.disabled = true;
+    el.vtRefreshBtn.textContent = 'Aggiorno…';
+    try {
+      const res = await fetch('/api/tratte/refresh', { method: 'POST' });
+      const data = await res.json();
+      renderVtSnapshot(data);
+      await loadFeeds(false);
+    } finally {
+      el.vtRefreshBtn.disabled = false;
+      el.vtRefreshBtn.textContent = '↻ Aggiorna ora';
+    }
+  });
+
+  el.vtRouteForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const origine = el.vtOrigInput.value.trim();
+    const destinazione = el.vtDestInput.value.trim();
+    const soglia = Number(el.vtSogliaInput.value || 10);
+    if (!origine || !destinazione) return;
+
+    await fetch('/api/tratte', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ origine, destinazione, soglia_ritardo_minuti: soglia })
+    });
+    el.vtOrigInput.value = '';
+    el.vtDestInput.value = '';
+    await loadTratte();
+  });
+
+  el.vtRoutesList.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-delete-route]');
+    if (!btn) return;
+    await fetch(`/api/tratte/${encodeURIComponent(btn.dataset.deleteRoute)}`, { method: 'DELETE' });
+    await loadTratte();
+  });
+}
+
+function renderVtSnapshot(data) {
+  const routes = data.tratte || [];
+  const liveTrains = data.liveTrains || [];
+  el.vtActiveCount.textContent = String(liveTrains.length);
+
+  if (routes.length === 0) {
+    el.vtRoutesList.innerHTML = '<li class="watchlist-item">Nessuna tratta configurata.</li>';
+  } else {
+    el.vtRoutesList.innerHTML = routes
+      .map((r) => {
+        const cats = (r.categorie || []).join('/');
+        const band = r.fascia_oraria ? `${r.fascia_oraria.inizio || '00:00'}–${r.fascia_oraria.fine || '24:00'}` : 'Tutto il giorno';
+        return `
+          <li class="watchlist-item">
+            <span>🚄 ${escapeHtml(r.origine)} → ${escapeHtml(r.destinazione)} <small class="meta-tag">soglia ≥${r.soglia_ritardo_minuti}m · ${escapeHtml(cats)} · ${escapeHtml(band)}</small></span>
+            <button type="button" class="watchlist-remove" data-delete-route="${escapeHtml(r.id)}" title="Rimuovi tratta">✕</button>
+          </li>
+        `;
+      })
+      .join('');
+  }
+
+  if (liveTrains.length === 0) {
+    el.vtLiveTrainsList.innerHTML = '<p class="modal-desc">Nessun treno attivo nella finestra oraria corrente (partenza -15m / arrivo +60m).</p>';
+  } else {
+    el.vtLiveTrainsList.innerHTML = liveTrains
+      .map((t) => {
+        const delayClass = t.ritardo >= 15 || t.tipoTreno === 'ST' ? 'badge-status-suspended' : t.ritardo > 0 ? 'badge-status-delayed' : 'badge-status-resolved';
+        const delayLabel = t.tipoTreno === 'ST' ? 'SOPPRESSO' : t.ritardo > 0 ? `+${t.ritardo} min` : t.ritardo < 0 ? `${t.ritardo} min` : 'In orario';
+        return `
+          <div class="vt-train-card">
+            <div class="vt-train-top">
+              <strong>${escapeHtml(t.categoria)} ${escapeHtml(t.numeroTreno)} · ${escapeHtml(t.origine)} → ${escapeHtml(t.destinazione)}</strong>
+              <span class="badge ${delayClass}">${escapeHtml(delayLabel)}</span>
+            </div>
+            <div class="vt-train-meta">
+              Ultimo ril.: ${escapeHtml(t.stazioneUltimoRilevamento || 'N/D')} · Tipo: ${escapeHtml(t.tipoTreno)}
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+  }
+}
+
+async function loadTratte() {
+  try {
+    const res = await fetch('/api/tratte');
+    if (!res.ok) return;
+    const data = await res.json();
+    renderVtSnapshot(data);
+  } catch {
+    // Non-blocking
+  }
 }
 
 async function init() {
@@ -662,7 +784,7 @@ async function init() {
   renderStationChips();
   bindEvents();
   await loadRegions();
-  await loadFeeds(false);
+  await Promise.all([loadFeeds(false), loadTratte()]);
 }
 
 init();

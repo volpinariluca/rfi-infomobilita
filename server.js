@@ -4,15 +4,22 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { RFI_REGIONS, buildFeedUrls, parseRssFeed } from './lib/rss.js';
 import { extractArticleContent } from './lib/article.js';
+import { createStore } from './lib/store.js';
+import { createViaggiatrenoService } from './lib/viaggiatreno.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, 'public');
+const CONFIG_PATH = path.join(__dirname, 'config.json');
+const STATE_PATH = path.join(__dirname, 'data', 'state.json');
 
 const PORT = Number(process.env.PORT || 3080);
 const HOST = process.env.HOST || '0.0.0.0';
 const CACHE_TTL_MS = Number(process.env.CACHE_TTL_MS || 180_000); // 3 minutes (matches RFI max-age=180)
 const ARTICLE_CACHE_TTL_MS = Number(process.env.ARTICLE_CACHE_TTL_MS || 600_000); // 10 minutes
 const FETCH_TIMEOUT_MS = 12_000;
+
+const store = createStore({ configPath: CONFIG_PATH, statePath: STATE_PATH });
+const viaggiatrenoService = createViaggiatrenoService({ store });
 
 const feedCache = new Map();
 const articleCache = new Map();
@@ -176,6 +183,26 @@ async function serveStatic(reqPath, res) {
   }
 }
 
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk;
+      if (body.length > 64_000) {
+        reject(new Error('Payload troppo grande'));
+      }
+    });
+    req.on('end', () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch {
+        reject(new Error('JSON non valido'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
 
@@ -196,10 +223,73 @@ const server = http.createServer(async (req, res) => {
     const force = url.searchParams.get('refresh') === '1';
     try {
       const data = await getFeedsForRegion(region, force);
-      return sendJson(res, 200, data);
+      const vtAlerts = store.getState().alerts || [];
+      const mergedItems = [...vtAlerts, ...(data.items || [])].sort((a, b) => b.timestamp - a.timestamp);
+      return sendJson(res, 200, {
+        ...data,
+        counts: {
+          ...data.counts,
+          viaggiatreno: vtAlerts.length,
+          total: mergedItems.length
+        },
+        items: mergedItems
+      });
     } catch (err) {
       return sendJson(res, 502, { error: err.message || 'Errore nel recupero dei feed RFI' });
     }
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/tratte') {
+    const snapshot = await viaggiatrenoService.getSnapshot();
+    return sendJson(res, 200, snapshot);
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/tratte') {
+    try {
+      const body = await readJsonBody(req);
+      const origine = String(body.origine || '').trim().toUpperCase();
+      const destinazione = String(body.destinazione || '').trim().toUpperCase();
+      if (!origine || !destinazione) {
+        return sendJson(res, 400, { error: 'Origine e destinazione sono obbligatorie' });
+      }
+      const config = await store.loadConfig();
+      const id = body.id || `${origine.slice(0, 3)}-${destinazione.slice(0, 3)}-${Date.now().toString(36)}`.toLowerCase();
+      const newRoute = {
+        id,
+        origine,
+        destinazione,
+        soglia_ritardo_minuti: Number(body.soglia_ritardo_minuti ?? 10),
+        categorie: Array.isArray(body.categorie) && body.categorie.length > 0 ? body.categorie : ['FR', 'IC', 'REG', 'RV'],
+        fascia_oraria: body.fascia_oraria || null,
+        attiva: body.attiva !== false
+      };
+      config.tratte.push(newRoute);
+      await store.saveConfig(config);
+      viaggiatrenoService.pollActiveTrains(true);
+      return sendJson(res, 201, { route: newRoute });
+    } catch (err) {
+      return sendJson(res, 400, { error: err.message || 'Richiesta non valida' });
+    }
+  }
+
+  if (req.method === 'DELETE' && url.pathname.startsWith('/api/tratte/')) {
+    const routeId = decodeURIComponent(url.pathname.slice('/api/tratte/'.length));
+    const config = await store.loadConfig();
+    const before = config.tratte.length;
+    config.tratte = config.tratte.filter((t) => t.id !== routeId);
+    if (config.tratte.length === before) {
+      return sendJson(res, 404, { error: 'Tratta non trovata' });
+    }
+    await store.saveConfig(config);
+    delete store.getState().dailyDiscovery.routes[routeId];
+    store.scheduleSave();
+    return sendJson(res, 200, { deleted: routeId });
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/tratte/refresh') {
+    await viaggiatrenoService.pollActiveTrains(true);
+    const snapshot = await viaggiatrenoService.getSnapshot();
+    return sendJson(res, 200, snapshot);
   }
 
   if (req.method === 'GET' && url.pathname === '/api/article') {
@@ -224,6 +314,9 @@ const server = http.createServer(async (req, res) => {
   res.end('Method Not Allowed');
 });
 
+await store.loadState();
+
 server.listen(PORT, HOST, () => {
   console.log(`🚆 RFI Infomobilità Hub attivo su http://${HOST}:${PORT}`);
+  viaggiatrenoService.start();
 });

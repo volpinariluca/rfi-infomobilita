@@ -1,0 +1,28 @@
+{
+  "tratte": [
+    {
+      "id": "bo-mi",
+      "origine": "BOLOGNA CENTRALE",
+      "destinazione": "MILANO CENTRALE",
+      "soglia_ritardo_minuti": 10,
+      "categorie": ["FR", "IC", "REG", "RV"],
+      "fascia_oraria": {
+        "inizio": "06:00",
+        "fine": "22:30"
+      },
+      "attiva": true
+    },
+    {
+      "id": "bo-pr",
+      "origine": "BOLOGNA CENTRALE",
+      "destinazione": "PARMA",
+      "soglia_ritardo_minuti": 10,
+      "categorie": ["REG", "RV", "IC"],
+      "fascia_oraria": {
+        "inizio": "06:30",
+        "fine": "21:30"
+      },
+      "attiva": true
+    }
+  ]
+}

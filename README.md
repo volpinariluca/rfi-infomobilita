@@ -48,6 +48,34 @@ pm2 start server.js --name rfi-infomobilita
 
 ---
 
+## 🚄 Monitoraggio Tratte Live (Viaggiatreno)
+
+Accanto ai feed RSS di RFI, l'app integra un worker per il monitoraggio in tempo reale dei ritardi e delle soppressioni/deviazioni tramite le API di **Viaggiatreno**.
+
+Puoi configurare le tratte direttamente dalla UI (**Tratte Live**) oppure modificando il file `config.json`:
+
+```json
+{
+  "tratte": [
+    {
+      "id": "bo-mi",
+      "origine": "BOLOGNA CENTRALE",
+      "destinazione": "MILANO CENTRALE",
+      "soglia_ritardo_minuti": 10,
+      "categorie": ["FR", "IC", "REG", "RV"],
+      "fascia_oraria": { "inizio": "06:00", "fine": "22:30" },
+      "attiva": true
+    }
+  ]
+}
+```
+
+- **Discovery giornaliera**: risolve i codici stazione (`autocompletaStazione`) e individua i treni diretti sulla tratta (con cache locale in `data/state.json`).
+- **Polling selettivo**: interroga `/andamentoTreno` solo per i treni nella finestra attiva (`partenza - 15m <= ora <= arrivo + 60m`).
+- **Anti-spam**: genera alert solo in caso di soppressione (`ST`/`PP`), deviazione (`DV`) o superamento della soglia con incremento di almeno `+5` minuti rispetto all'ultimo avviso.
+
+---
+
 ## 🧪 Test
 
 ```bash
@@ -62,3 +90,4 @@ npm test
 | `HOST` | `0.0.0.0` | Indirizzo di ascolto |
 | `CACHE_TTL_MS` | `180000` | Durata cache feed RSS in ms (3 minuti) |
 | `ARTICLE_CACHE_TTL_MS` | `600000` | Durata cache pagine di dettaglio in ms (10 minuti) |
+| `VT_POLL_INTERVAL_MS` | `60000` | Intervallo di polling Viaggiatreno per treni attivi in ms (1 minuto) |
