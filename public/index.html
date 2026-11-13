@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RFI Infomobilità Hub — Emilia-Romagna &amp; Frecce/IC/Regionali</title>
+  <meta name="description" content="Web app per consultare, filtrare e classificare i feed RSS Infomobilità di RFI (Aggiornamenti e Avvisi) in Emilia-Romagna e su tutta la rete.">
+  <meta name="theme-color" content="#0f4c81">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <div class="brand">
+        <img src="/icon.svg" alt="" class="brand-icon" width="36" height="36">
+        <div>
+          <h1 class="brand-title">RFI Infomobilità</h1>
+          <p class="brand-subtitle" id="lastSyncText">Connessione ai feed RFI…</p>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <label class="region-picker" for="regionSelect" title="Seleziona regione RSS RFI">
+          <span class="sr-only">Regione</span>
+          <select id="regionSelect" aria-label="Seleziona regione">
+            <option value="emilia_romagna">Emilia-Romagna</option>
+          </select>
+        </label>
+
+        <button type="button" id="watchlistBtn" class="btn btn-secondary" title="Gestisci le tue tratte preferite">
+          <span class="btn-icon" aria-hidden="true">★</span>
+          <span class="btn-label">Le mie tratte</span>
+          <span class="badge-count" id="watchlistCount">0</span>
+        </button>
+
+        <button type="button" id="notifyBtn" class="btn btn-icon-only" title="Attiva/disattiva notifiche desktop" aria-pressed="false">
+          <span aria-hidden="true">🔔</span>
+          <span class="sr-only">Notifiche</span>
+        </button>
+
+        <button type="button" id="themeBtn" class="btn btn-icon-only" title="Cambia tema chiaro/scuro">
+          <span aria-hidden="true" id="themeIcon">🌙</span>
+          <span class="sr-only">Cambia tema</span>
+        </button>
+
+        <button type="button" id="refreshBtn" class="btn btn-primary" title="Aggiorna subito i feed">
+          <span class="refresh-spinner" aria-hidden="true">↻</span>
+          <span class="btn-label" id="refreshLabel">Aggiorna</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container main-content">
+    <div id="errorBanner" class="error-banner hidden" role="alert"></div>
+
+    <!-- Status Summary Strip (acts as quick status filter) -->
+    <section class="status-strip" aria-label="Riepilogo stato circolazione">
+      <button type="button" class="stat-pill active" data-status-filter="all" id="statAll">
+        <span class="stat-value" id="countAll">0</span>
+        <span class="stat-label">Tutti</span>
+      </button>
+      <button type="button" class="stat-pill stat-suspended" data-status-filter="suspended" id="statSuspended">
+        <span class="stat-dot"></span>
+        <span class="stat-value" id="countSuspended">0</span>
+        <span class="stat-label">Sospese / Scioperi</span>
+      </button>
+      <button type="button" class="stat-pill stat-delayed" data-status-filter="delayed" id="statDelayed">
+        <span class="stat-dot"></span>
+        <span class="stat-value" id="countDelayed">0</span>
+        <span class="stat-label">Rallentamenti</span>
+      </button>
+      <button type="button" class="stat-pill stat-resolved" data-status-filter="resolved" id="statResolved">
+        <span class="stat-dot"></span>
+        <span class="stat-value" id="countResolved">0</span>
+        <span class="stat-label">Tornate Regolari</span>
+      </button>
+      <button type="button" class="stat-pill stat-planned" data-status-filter="planned" id="statPlanned">
+        <span class="stat-dot"></span>
+        <span class="stat-value" id="countPlanned">0</span>
+        <span class="stat-label">Avvisi / Lavori</span>
+      </button>
+    </section>
+
+    <!-- Finder & Multi-dimensional Filters -->
+    <section class="finder-panel" aria-label="Ricerca e filtri">
+      <div class="search-row">
+        <div class="search-box">
+          <span class="search-icon" aria-hidden="true">⌕</span>
+          <input
+            type="search"
+            id="searchInput"
+            placeholder="Cerca linea, stazione, treno, causa o regione… (premi /)"
+            autocomplete="off"
+            aria-label="Cerca nei feed"
+          >
+          <kbd class="search-kbd" id="searchKbd">/</kbd>
+          <button type="button" id="clearSearchBtn" class="clear-search hidden" aria-label="Cancella ricerca">✕</button>
+        </div>
+
+        <div class="segmented-control" role="tablist" aria-label="Tipo di feed">
+          <button type="button" class="seg-btn active" data-feed-filter="all" id="feedAll">Tutti</button>
+          <button type="button" class="seg-btn" data-feed-filter="updates" id="feedUpdates">Live</button>
+          <button type="button" class="seg-btn" data-feed-filter="notices" id="feedNotices">Avvisi</button>
+        </div>
+      </div>
+
+      <div class="filters-row">
+        <div class="filter-group" aria-label="Categoria treno">
+          <span class="filter-group-label">Treni:</span>
+          <button type="button" class="chip active" data-train-filter="all" id="trainAll">Tutti</button>
+          <button type="button" class="chip chip-av" data-train-filter="av" id="trainAv">Frecce / AV</button>
+          <button type="button" class="chip chip-ic" data-train-filter="ic" id="trainIc">Intercity</button>
+          <button type="button" class="chip chip-reg" data-train-filter="reg" id="trainReg">Regionali</button>
+        </div>
+
+        <div class="filter-toggles">
+          <button type="button" class="chip chip-toggle" id="onlyWatchlistBtn" aria-pressed="false">
+            ★ Solo le mie tratte
+          </button>
+          <button type="button" class="chip chip-toggle" id="onlyUnreadBtn" aria-pressed="false">
+            ● Solo non letti
+          </button>
+          <button type="button" class="btn-link" id="markAllReadBtn">
+            Segna tutto letto
+          </button>
+        </div>
+      </div>
+
+      <div class="quick-stations-row" id="quickStationsRow" aria-label="Stazioni e nodi rapidi">
+        <span class="filter-group-label">Nodi rapidi:</span>
+        <div class="station-chips" id="stationChips"></div>
+      </div>
+    </section>
+
+    <!-- Results Header -->
+    <div class="results-meta">
+      <span id="resultsCountText">Caricamento…</span>
+      <div class="auto-refresh-status">
+        <label class="auto-refresh-toggle">
+          <input type="checkbox" id="autoRefreshCheckbox" checked>
+          <span>Auto-aggiorna (<span id="countdownText">3:00</span>)</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Feed Cards List -->
+    <section id="feedList" class="feed-list" aria-live="polite"></section>
+  </main>
+
+  <!-- Detail Slide-over Drawer -->
+  <div id="drawerBackdrop" class="drawer-backdrop hidden" aria-hidden="true"></div>
+  <aside id="detailDrawer" class="detail-drawer hidden" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+    <div class="drawer-header">
+      <div class="drawer-badges" id="drawerBadges"></div>
+      <button type="button" id="closeDrawerBtn" class="btn btn-icon-only" aria-label="Chiudi dettaglio">✕</button>
+    </div>
+    <div class="drawer-body" id="drawerBody">
+      <h2 id="drawerTitle" class="drawer-title"></h2>
+      <div class="drawer-meta" id="drawerMeta"></div>
+      <div class="drawer-content" id="drawerContent"></div>
+    </div>
+    <div class="drawer-footer">
+      <a id="drawerExternalLink" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+        Apri pagina ufficiale RFI ↗
+      </a>
+    </div>
+  </aside>
+
+  <!-- Watchlist Modal -->
+  <div id="watchlistModalBackdrop" class="modal-backdrop hidden" aria-hidden="true"></div>
+  <div id="watchlistModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="watchlistModalTitle">
+    <div class="modal-header">
+      <h2 id="watchlistModalTitle">Le mie tratte e stazioni</h2>
+      <button type="button" id="closeWatchlistBtn" class="btn btn-icon-only" aria-label="Chiudi">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-desc">
+        Aggiungi stazioni, linee o parole chiave (es. <code>Bologna</code>, <code>Parma</code>, <code>AV Bologna - Milano</code>, <code>Rimini</code>). Gli avvisi corrispondenti verranno evidenziati e potrai filtrarli con un clic.
+      </p>
+      <form id="watchlistForm" class="watchlist-form">
+        <input type="text" id="watchlistInput" placeholder="Es. Reggio Emilia, Rimini, Porretta…" required>
+        <button type="submit" class="btn btn-primary">Aggiungi</button>
+      </form>
+      <ul id="watchlistItems" class="watchlist-items"></ul>
+    </div>
+  </div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

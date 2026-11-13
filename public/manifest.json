@@ -1,0 +1,16 @@
+{
+  "name": "RFI Infomobilità Hub",
+  "short_name": "RFI Treni",
+  "description": "Monitoraggio, ricerca e classificazione dei feed RSS Infomobilità di RFI.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f141b",
+  "theme_color": "#0f4c81",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
